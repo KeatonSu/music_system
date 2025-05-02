@@ -1,0 +1,25 @@
+<html>
+	<head>
+		{{list.title}}<br>
+	</head>
+	<body>
+		<table>
+			<th>Song ID</th>
+			<th>Song title</th>
+		{% for line in list %}
+
+		<tr>
+			<td>{{line.songID}}</td>
+			<td>{{line.title}}</td>
+		</tr>
+		{% endfor %}
+		</table><br>
+
+		<br>
+		<a href="/playlist">Go back</a>
+	</body>
+</html>
+
+
+		
+

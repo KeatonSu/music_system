@@ -1,0 +1,68 @@
+<html>
+<head>
+</head>
+<body>
+
+	Hello!<br>
+
+<br>
+Your Profile:<br><br>
+
+First Name:{{user.fname}}<br>
+Last Name:{{user.lname}}<br>
+Nick Name:{{user.nickname}}<br>
+
+<br>
+<br>
+Here are new song reviews for people of your interest:<br>
+<table>
+	<th>First Name</th>
+	<th>Last Name</th>
+	<th>Review</th>
+	<th>Post date</th>
+
+{% for line in songReviews %}
+
+	<tr>
+		<td>{{line.fname}}</td>
+		<td>{{line.lname}}</td>
+		<td>{{line.reviewText}}</td>
+		<td>{{line.reviewDate}}</td>
+	<tr>
+{% endfor %}
+</table><br>
+
+
+
+Here are new songs released recently of your followed artists:
+
+<table>
+	<th>First Name</th>
+	<th>Last Name</th>
+	<th>Song Name</th>
+	<th>release date</th>
+
+{% for line in newSongs %}
+
+	<tr>
+		<td>{{line.fname}}</td>
+		<td>{{line.lname}}</td>
+		<td>{{line.title}}</td>
+		<td>{{line.releaseDate}}</td>
+	<tr>
+{% endfor %}
+</table>
+<br>
+<br>
+
+<a href="/playlist">your playlist</a><br>
+<a href="/musicSearch">Music Search</a><br>
+
+<a href="/friends">Friends</a><br>
+<a href="/follow">Follow</a><br>
+
+<a href="/logout">Logout</a>
+</body>
+</html>
+
+

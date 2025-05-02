@@ -1,0 +1,20 @@
+<html>
+	<head>
+	</head>
+	<body>
+		Which playlist you want to add to?<br>
+		<form action="/addPlaylistAction" method="POST">
+		
+	{% for line in playlist %}
+	<input type="radio" name="thisList" value={{line.title}}>{{line.title}}</input>
+	<br>
+	{% endfor %}
+	<input type="submit" value="add">
+		</form>
+
+		<br>
+		<br>
+		<a href="/home">Go back</a>
+	</body>
+</html>
+

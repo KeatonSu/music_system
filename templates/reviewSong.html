@@ -1,0 +1,25 @@
+<html>
+	<head>
+	</head>
+	<body>
+		Reviews from other users</br>
+		<table>
+			<th>username</th>
+			<th>review</th>
+			<th>review date</th>
+
+			{% for line in reviewResult %}
+			<tr>
+				<td>{{line.username}}</td>
+				<td>{{line.reviewText}}</td>
+				<td>{{line.reviewDate}}</td>
+			</tr>
+			{% endfor %}
+		</table>
+		<br>
+		<br>
+		<a href="/showSong">Go back</a>
+
+		</body>
+</html>
+

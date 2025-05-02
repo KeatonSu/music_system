@@ -1,0 +1,24 @@
+<html>
+<head>
+</head>
+<body>
+<form action="/musicSearchAction" method="POST">
+	<input type="number" name = "songID" placeholder="song ID" /> </br>
+	<input type="text" name = "songTitle" placeholder="song title" /> </br>
+	<input type="text" name = "genre" placeholder="music genre" /> </br>
+	<input type="text" name = "artistFname" placeholder="Artist First Name" /> </br>
+	<input type="text" name = "artistLname" placeholder="Artist Last Name" /> </br>
+	<input type="number" name = "aboveRating" placeholder="Rating Above" step="0.1" min="0" max="5" /> </br>
+
+	<input type="submit" value = Search />
+	{% if error %}
+		<p class="error"><strong>Error:</strong> {{error}}</p>
+	{% endif %}
+</form>
+
+<a href="/home">Go back</a>
+
+</body>
+
+
+</html>

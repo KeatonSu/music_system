@@ -1,0 +1,33 @@
+<html>
+	<head>
+	</head>
+		<body>
+			<h1>Results</h1></br>
+			<br>
+
+			<table>
+				<th>Song ID</th>
+				<th>Title</th>
+
+			{% for line in results %}
+
+			<tr>
+				<td>{{line.songID}}</td>
+				<td>{{line.title}}</td>
+			</tr>
+			{% endfor %}
+			
+			</table>
+			<br><br>
+			
+			<form action="/song" method="POST">
+			The song ID you want to search:
+			<input type="number" name="songID" placeholder="Song ID" /> </br>
+			<input type="submit" value="submit" />
+			</form>
+
+		</body>
+</html>
+
+
+

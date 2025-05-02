@@ -1,0 +1,40 @@
+<html>
+	<head>
+	</head>
+	<body>
+		<h1>{{songs.title}}</h1>
+		<br>
+		<br>
+		Song ID:{{songs.songID}}<br>
+		Artist first name:{{songs.fname}}<br>
+		Artist last name:{{songs.lname}}<br>
+		genre:{{songs.genre}}<br>
+		release date:{{songs.releaseDate}}<br>
+		URL:{{songs.songURL}}<br>
+		Average rate:{{songs.aves}}<br>
+		Album ID:{{songs.albumID}}<br>
+		<a href="/addPlaylist">addPlaylist</a><br>
+
+
+	<br>
+	<br>
+	<form action="/rateSongAction" method="POST">
+		<input type="number" name="rate" placeholder="1,2,3,4 or 5?" /> </br>
+		<input type="submit" value="rate" />
+	</form>
+	<a href="/rateSong">see ratings</a>
+	<br>
+	<br>
+	<form action="/reviewSongAction" method="POST">
+		<input type="text" name="reviews" placeholder="Enter the review" /> </br>
+		<input type="submit" value="review" />
+	</form>
+	<a href="/reviewSong">see reviews</a>
+
+	<br>
+	<br>
+	<a href="/musicSearch">back</a>
+
+	</body>
+</html>
+

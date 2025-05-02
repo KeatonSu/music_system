@@ -1,0 +1,38 @@
+<html>
+	<head>
+	</head>
+	<body>
+		Your Playlists:<br><br>
+		<table>
+			<th>title</th>
+			<th>createDate</th>
+			<th>description</th>
+		{% for line in playlist %}
+			<tr>
+				<td>{{line.title}}</td>
+				<td>{{line.createDate}}</td>
+				<td>{{line.description}}</td>
+
+			</tr>
+		{% endfor %}
+	</table>
+	<br>
+
+	<form action="/listSong" method="POST">
+		Which playlist you want to see?<br>
+			<input type="text" name="title" placeholder="title" /> </br>
+			<input type="submit" value="submit" />
+	</form><br>
+
+	Create Playlist:
+	<form action="/createPlaylist" method="POST">
+		<input type="text" name="title" placeholder="Playlist title" required /> <br>
+		<input type="text" name="desp" placeholder="description" required /> <br>
+		<input type="submit" value="create" />
+	</form><br><br>
+
+
+	<a href="/home">Go back</a>
+	</body>
+</html>
+
