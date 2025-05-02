@@ -1,6 +1,6 @@
 #Import Flask Library
 import flask
-from flask import Flask, render_template, request, session, url_for, redirect, flash
+from flask import Flask, render_template, request, session, url_for, redirect, flash, jsonify
 import pymysql.cursors
 import os
 import config
@@ -9,6 +9,7 @@ from datetime import datetime
 #from flask import Flask, flash, request, redirect, render_template
 from werkzeug.utils import secure_filename
 import hashlib
+from flask_restful import Api, Resource, reqparse
 
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
 
@@ -26,101 +27,106 @@ conn = pymysql.connect(host='localhost',
                        charset='utf8mb4',
                        cursorclass=pymysql.cursors.DictCursor)
 
+api = Api(app)
 
-#Define a route to hello function
+# User Authentication
+class UserLogin(Resource):
+    def post(self):
+        parser = reqparse.RequestParser()
+        parser.add_argument('username', required=True)
+        parser.add_argument('password', required=True)
+        args = parser.parse_args()
+
+        username = args['username']
+        password = args['password']
+        input_pwd_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+        cursor = conn.cursor()
+        query = 'SELECT pwd FROM user WHERE username=%s'
+        cursor.execute(query, username)
+        data = cursor.fetchone()
+        cursor.close()
+
+        if not data:
+            return {'error': 'Invalid credentials'}, 401
+
+        db_password = data['pwd']
+        db_pwd_hash = hashlib.sha256(db_password.encode('utf-8')).hexdigest()
+
+        if input_pwd_hash == db_pwd_hash:
+            session['name'] = username
+            return {'message': 'Login successful'}, 200
+        else:
+            return {'error': 'Invalid credentials'}, 401
+
+class UserRegister(Resource):
+    def post(self):
+        parser = reqparse.RequestParser()
+        parser.add_argument('username', required=True)
+        parser.add_argument('password', required=True)
+        parser.add_argument('fname', required=True)
+        parser.add_argument('lname', required=True)
+        parser.add_argument('nickname', required=True)
+        args = parser.parse_args()
+
+        cursor = conn.cursor()
+        query = 'SELECT * FROM user WHERE username = %s'
+        cursor.execute(query, (args['username']))
+        data = cursor.fetchone()
+
+        if data:
+            return {'error': 'User already exists'}, 400
+
+        loginStats = datetime.utcnow().strftime('%Y-%m-%d')
+        ins = 'INSERT INTO user VALUES(%s, %s, %s, %s, %s, %s)'
+        cursor.execute(ins, (args['username'], args['password'], args['fname'], 
+                           args['lname'], loginStats, args['nickname']))
+        conn.commit()
+        cursor.close()
+        return {'message': 'User created successfully'}, 201
+
+# Song Resources
+class SongList(Resource):
+    def get(self):
+        cursor = conn.cursor()
+        query = '''SELECT songID, title, fname, lname, genre, releaseDate, songURL, aves
+                  FROM song NATURAL JOIN aveRate NATURAL JOIN songGenre 
+                  NATURAL JOIN artist NATURAL JOIN artistPerformsSong'''
+        cursor.execute(query)
+        songs = cursor.fetchall()
+        cursor.close()
+        return jsonify(songs)
+
+class Song(Resource):
+    def get(self, song_id):
+        cursor = conn.cursor()
+        query = '''SELECT songID, title, fname, lname, genre, releaseDate, songURL, aves
+                  FROM song NATURAL JOIN aveRate NATURAL JOIN songGenre 
+                  NATURAL JOIN artist NATURAL JOIN artistPerformsSong
+                  WHERE songID = %s'''
+        cursor.execute(query, (song_id))
+        song = cursor.fetchone()
+        cursor.close()
+        
+        if not song:
+            return {'error': 'Song not found'}, 404
+        return jsonify(song)
+
+# Define a route to hello function
 @app.route('/')
 def hello():
     session['name'] = None
     return render_template('index.html')
 
-#Define a route to login
+# Define a route to login
 @app.route('/login')
 def login():
     return render_template('login.html')
 
-#Define a route to register
+# Define a route to register
 @app.route('/register')
 def register():
     return render_template('register.html')
-
-#Authenticates the login
-@app.route('/loginAuth', methods=['GET', 'POST'])
-def loginAuth():
-    #grab information
-    username = request.form['username']
-    password = request.form['password']
-
-    #add hash
-    input_pwd_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
-
-    #cursor
-    cursor = conn.cursor()
-    #execute query
-    query = 'SELECT pwd FROM user WHERE username=%s'
-    cursor.execute(query,username)
-    #store result
-    data = cursor.fetchone()
-    cursor.close()
-    if(data==None):
-        return render_template('index.html')
-    db_password = data['pwd']
-    db_pwd_hash = hashlib.sha256(db_password.encode('utf-8')).hexdigest()
-    error = None
-
-    #check
-    if(input_pwd_hash==db_pwd_hash):
-        session['name'] = username
-        session['lastlogin'] = None
-        #update login status
-        loginStats = datetime.utcnow()
-        formatted_date = loginStats.strftime('%Y-%m-%d')
-        loginDateSql = "SELECT lastlogin FROM user WHERE username=%s"
-        query = "UPDATE user SET lastlogin=%s WHERE username = %s"
-        cursor = conn.cursor()
-        cursor.execute(loginDateSql,(username))
-        lastLoginTime = cursor.fetchone()
-        # store the last login time
-        session['lastlogin'] = lastLoginTime['lastlogin']
-        cursor.execute(query, (formatted_date, username))
-        conn.commit()
-        cursor.close()
-        return redirect(url_for(('home')))
-    else:
-        error = 'Invalid login'
-        return render_template('login.html',error=error)
-
-#Authenticates the register
-@app.route('/registerAuth', methods=['GET', 'POST'])
-def registerAuth():
-    #grabs information from the forms
-    username = flask.request.form['username']
-    password = flask.request.form['password']
-    fname = flask.request.form['fname']
-    lname = flask.request.form['lname']
-    nickname = flask.request.form['nickname']
-    #cursor used to send queries
-    cursor = conn.cursor()
-    #executes query
-    query = 'SELECT * FROM user WHERE username = %s'
-    cursor.execute(query, (username))
-    #stores the results in a variable
-    data = cursor.fetchone()
-    #use fetchall() if you are expecting more than 1 data row
-    error = None
-
-    loginStats = datetime.utcnow().strftime('%Y-%m-%d')
-
-    if(data):
-        #If the previous query returns data, then user exists
-        error = "This user already exists"
-        return render_template('register.html', error = error)
-    else:
-        ins = 'INSERT INTO user VALUES(%s, %s, %s, %s, %s,%s)'
-        cursor.execute(ins, (username, password, fname, lname, loginStats, nickname))
-        conn.commit()
-        cursor.close()
-        return render_template('index.html')
-
 
 @app.route('/home')
 def home():
@@ -156,9 +162,6 @@ def home():
         ORDER BY releaseDate DESC
         '''
 
-
-        #cursor.execute(query1, (username,lastlogin,username,lastlogin,username,lastlogin))
-
         cursor.execute(query1,(username,lastlogin,username,lastlogin,username,lastlogin))
         friendReviewsData = cursor.fetchall()
         cursor.execute(query2,(username,lastlogin))
@@ -166,19 +169,12 @@ def home():
         cursor.close()
         return render_template('home.html',user=data,songReviews=friendReviewsData,newSongs=songdata)
 
-
-
-#Define music search
-
+# Define music search
 @app.route('/musicSearch',methods=['GET','POST'])
 def musicSearch():
     return render_template('musicSearch.html')
 
-
-
-
-
-#Define music search action
+# Define music search action
 @app.route('/musicSearchAction',methods=['GET','POST'])
 def musicSearchAction():
     #fetch music name
@@ -241,11 +237,9 @@ def musicSearchAction():
         error='Invalid, no matching results'
         return render_template("musicSearch.html",error=error)
 
-
-#Define song
+# Define song
 @app.route('/song',methods=["GET","POST"])
 def song():
-
     songID = request.form['songID']
     session['songID'] = songID
 
@@ -269,8 +263,6 @@ def song():
     #stores the results in a variable
     data = cursor.fetchone()
 
-
-
     cursor.close()
     error = None
     if(data):
@@ -280,10 +272,9 @@ def song():
         error = 'Invalid, no matching song'
         return render_template('musicSearch.html', error=error)
 
-#Define showSong for back
+# Define showSong for back
 @app.route('/showSong',methods=["GET","POST"])
 def showSong():
-
     songID = session['songID']
 
     #cursor used to send queries
@@ -315,9 +306,7 @@ def showSong():
         error = 'Invalid, no matching song'
         return render_template('musicSearch.html', error=error)
 
-
-
-#Define rating the song
+# Define rating the song
 @app.route('/rateSong',methods=["GET","POST"])
 def rateSong():
     if(None!=session['name']):
@@ -336,8 +325,7 @@ def rateSong():
     else:
         return render_template('index.html')
 
-
-#Define rate song action
+# Define rate song action
 @app.route('/rateSongAction',methods=["GET","POST"])
 def rateSongAction():
     if(session['name']!=None):
@@ -374,10 +362,7 @@ def rateSongAction():
     else:
         return render_template('index.html')
 
-
-
-
-#Define review the song
+# Define review the song
 @app.route('/reviewSong',methods=["GET","POST"])
 def reviewSong():
     if (session['name']!=None):
@@ -395,10 +380,7 @@ def reviewSong():
     else:
         return render_template('index.html')
 
-
-
-
-#Define review song action
+# Define review song action
 @app.route('/reviewSongAction',methods=["GET","POST"])
 def reviewSongAction():
     if (session['name']!=None):
@@ -421,7 +403,6 @@ def reviewSongAction():
             cursor.close()
             return redirect(url_for('showSong'))
         else:
-
             ins = 'INSERT INTO reviewSong VALUES(%s, %s, %s, %s)'
             cursor.execute(ins, (username, songID, reviews, date))
             conn.commit()
@@ -430,16 +411,9 @@ def reviewSongAction():
     else:
         return render_template('index.html')
 
-
-
-
-
-
-########
-
 # NOTE: Assume in a friend request, user1 is the sender, user2 is the receiver in friend request system
 
-#Define friends page
+# Define friends page
 @app.route('/friends')
 def friends():
     user = session['name']
@@ -466,10 +440,9 @@ def friends():
 
     return render_template('friends.html',friendsRequest=data,friendList=fss)
 
-
 # NOTE: Assume in a friend request, user1 is the sender, user2 is the receiver in friend request system
 
-#Define friend accept
+# Define friend accept
 @app.route('/accept',methods=['GET','POST'])
 def accept():
     user = session['name']
@@ -492,7 +465,7 @@ def accept():
         error = 'no such pending request'
         return redirect(url_for('friends'))
 
-#Define friend reject
+# Define friend reject
 @app.route('/reject',methods=['POST'])
 def reject():
     user = session['name']
@@ -513,8 +486,7 @@ def reject():
         error = 'no such pending request'
         return redirect(url_for('friends'))
 
-
-#Define send requests
+# Define send requests
 @app.route('/friendRequest',methods=['POST'])
 def friendRequest():
     sender = session['name']
@@ -534,7 +506,7 @@ def friendRequest():
         cursor.close()
         return redirect(url_for('friends'))
 
-#Define unfriend
+# Define unfriend
 @app.route('/unfriend',methods=["POST"])
 def unfriend():
     sender = session['name']
@@ -550,7 +522,6 @@ def unfriend():
         '''
         delete2 = "DELETE FROM friend WHERE user1=%s AND user2=%s AND acceptStatus='Accepted'"
 
-
         cursor.execute(delete1,(name,sender))
         conn.commit()
         cursor.execute(delete2, (sender, name))
@@ -562,9 +533,7 @@ def unfriend():
         error = 'no matching friend'
         return redirect(url_for('friends'))
 
-
-
-#Define follow page
+# Define follow page
 @app.route('/follow')
 def follow():
     user = session['name']
@@ -575,14 +544,13 @@ def follow():
             WHERE follows.follower = %s 
             ORDER BY createdAt DESC'''
 
-
     cursor.execute(query1,user)
     fss = cursor.fetchall()
     cursor.close()
 
     return render_template('follow.html',follows=fss)
 
-#Define addFollow page
+# Define addFollow page
 @app.route('/addFollow',methods=["POST"])
 def addFollow():
     user = session['name']
@@ -602,7 +570,7 @@ def addFollow():
     else:
         return redirect(url_for('follow'))
 
-#Define unfollow page
+# Define unfollow page
 @app.route('/unfollow',methods=["POST"])
 def unfollow():
     user = session['name']
@@ -622,9 +590,7 @@ def unfollow():
     else:
         return redirect(url_for('follow'))
 
-
-
-#Define playlist
+# Define playlist
 @app.route('/playlist')
 def playlist():
     username = session['name']
@@ -636,7 +602,7 @@ def playlist():
 
     return render_template('playlist.html',playlist=data)
 
-#Define createPlaylist
+# Define createPlaylist
 @app.route('/createPlaylist',methods=["GET","POST"])
 def createPlaylist():
     username = session['name']
@@ -662,8 +628,7 @@ def createPlaylist():
         cursor.close()
         return render_template('playlist.html',playlist=data)
 
-
-#Define addPlaylist
+# Define addPlaylist
 @app.route('/addPlaylist',methods=['GET','POST'])
 def addPlaylist():
     if session['name'] == None:
@@ -680,7 +645,7 @@ def addPlaylist():
         else:
             return redirect(url_for('showSong'))
 
-#Define addPlaylistAction
+# Define addPlaylistAction
 @app.route('/addPlaylistAction',methods=['GET','POST'])
 def addPlaylistAction():
     username = session['name']
@@ -704,7 +669,7 @@ def addPlaylistAction():
         cursor.execute(ins,(songID,title,username))
         return redirect(url_for('showSong'))
 
-#Define listSong
+# Define listSong
 @app.route('/listSong',methods=['GET','POST'])
 def listSong():
     username = session['name']
@@ -716,18 +681,20 @@ def listSong():
     data = cursor.fetchall()
     return render_template('listSong.html',title=title,list=data)
 
-
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect('/')
-
 
 app.secret_key = 'some key that you will never guess'
 # Run the app on localhost port 5000
 # debug = True -> you don't have to restart flask
 # for changes to go through, TURN OFF FOR PRODUCTION
 if __name__ == "__main__":
+    api.add_resource(UserLogin, '/api/login')
+    api.add_resource(UserRegister, '/api/register')
+    api.add_resource(SongList, '/api/songs')
+    api.add_resource(Song, '/api/songs/<int:song_id>')
     app.run('127.0.0.1', 5000, debug=True)
 
 

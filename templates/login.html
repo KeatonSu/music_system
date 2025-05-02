@@ -1,19 +1,40 @@
 <html>
 <head>
+    <script>
+        async function handleLogin(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    window.location.href = '/home';
+                } else {
+                    document.getElementById('error').textContent = data.error;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+    </script>
 </head>
 <body>
-<form action="/loginAuth" method="POST">
-	<input type="text" name = "username" placeholder="username" required/> </br>
-	<input type="password" name = "password" placeholder="password" required/></br>
-	<input type="submit" value = Login />
-	{% if error %}
-		<p class="error"><strong>Error:</strong> {{error}}</p>
-	{% endif %}
-</form>
-
-<a href="/">Go back</a>
-
+    <form onsubmit="handleLogin(event)">
+        <input type="text" id="username" placeholder="username" required/><br>
+        <input type="password" id="password" placeholder="password" required/><br>
+        <input type="submit" value="Login"/>
+        <p id="error" class="error"></p>
+    </form>
+    <a href="/">Go back</a>
 </body>
-
-
 </html>
