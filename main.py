@@ -1,22 +1,31 @@
-#Import Flask Library
-import flask
-from flask import Flask, render_template, request, session, url_for, redirect, flash, jsonify
+from flask import render_template, request, session, url_for, redirect, flash, jsonify
 import pymysql.cursors
 import os
-import config
-from app import app
 from datetime import datetime
-#from flask import Flask, flash, request, redirect, render_template
 from werkzeug.utils import secure_filename
 import hashlib
-from flask_restful import Api, Resource, reqparse
+
+# Import app and api after they're fully initialized
+from app import app, api
+from resources import (UserLogin, UserRegister, SongList, Song, 
+                      PlaylistList, PlaylistSongs, SongRating,
+                      FriendList, FriendRequest, SongReview, UserProfile)
 
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
 
-
-###Initialize the app from Flask
-##app = Flask(__name__)
-##app.secret_key = "secret key"
+# Register API resources first
+api.add_resource(UserLogin, '/api/login')
+api.add_resource(UserRegister, '/api/register')
+api.add_resource(SongList, '/api/songs')
+api.add_resource(Song, '/api/songs/<int:song_id>')
+api.add_resource(PlaylistList, '/api/playlists')
+api.add_resource(PlaylistSongs, '/api/playlists/<string:playlist_title>/songs')
+api.add_resource(SongRating, '/api/songs/<string:song_id>/rate')
+api.add_resource(FriendList, '/api/friends')
+api.add_resource(FriendRequest, '/api/friends/requests')
+api.add_resource(FriendRequest, '/api/friends/requests/<string:request_id>', endpoint='friend_request_action')
+api.add_resource(SongReview, '/api/songs/<string:song_id>/reviews')
+api.add_resource(UserProfile, '/api/users/<string:username>')
 
 #Configure MySQL
 conn = pymysql.connect(host='localhost',
@@ -27,92 +36,16 @@ conn = pymysql.connect(host='localhost',
                        charset='utf8mb4',
                        cursorclass=pymysql.cursors.DictCursor)
 
-api = Api(app)
+# Create aveRate view
+cursor = conn.cursor()
+cursor.execute("DROP VIEW IF EXISTS aveRate")
+cursor.execute('''CREATE VIEW aveRate AS 
+                 SELECT songID, AVG(stars) as aves
+                 FROM song NATURAL JOIN rateSong 
+                 GROUP BY songID''')
+cursor.close()
 
-# User Authentication
-class UserLogin(Resource):
-    def post(self):
-        parser = reqparse.RequestParser()
-        parser.add_argument('username', required=True)
-        parser.add_argument('password', required=True)
-        args = parser.parse_args()
-
-        username = args['username']
-        password = args['password']
-        input_pwd_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
-
-        cursor = conn.cursor()
-        query = 'SELECT pwd FROM user WHERE username=%s'
-        cursor.execute(query, username)
-        data = cursor.fetchone()
-        cursor.close()
-
-        if not data:
-            return {'error': 'Invalid credentials'}, 401
-
-        db_password = data['pwd']
-        db_pwd_hash = hashlib.sha256(db_password.encode('utf-8')).hexdigest()
-
-        if input_pwd_hash == db_pwd_hash:
-            session['name'] = username
-            return {'message': 'Login successful'}, 200
-        else:
-            return {'error': 'Invalid credentials'}, 401
-
-class UserRegister(Resource):
-    def post(self):
-        parser = reqparse.RequestParser()
-        parser.add_argument('username', required=True)
-        parser.add_argument('password', required=True)
-        parser.add_argument('fname', required=True)
-        parser.add_argument('lname', required=True)
-        parser.add_argument('nickname', required=True)
-        args = parser.parse_args()
-
-        cursor = conn.cursor()
-        query = 'SELECT * FROM user WHERE username = %s'
-        cursor.execute(query, (args['username']))
-        data = cursor.fetchone()
-
-        if data:
-            return {'error': 'User already exists'}, 400
-
-        loginStats = datetime.utcnow().strftime('%Y-%m-%d')
-        ins = 'INSERT INTO user VALUES(%s, %s, %s, %s, %s, %s)'
-        cursor.execute(ins, (args['username'], args['password'], args['fname'], 
-                           args['lname'], loginStats, args['nickname']))
-        conn.commit()
-        cursor.close()
-        return {'message': 'User created successfully'}, 201
-
-# Song Resources
-class SongList(Resource):
-    def get(self):
-        cursor = conn.cursor()
-        query = '''SELECT songID, title, fname, lname, genre, releaseDate, songURL, aves
-                  FROM song NATURAL JOIN aveRate NATURAL JOIN songGenre 
-                  NATURAL JOIN artist NATURAL JOIN artistPerformsSong'''
-        cursor.execute(query)
-        songs = cursor.fetchall()
-        cursor.close()
-        return jsonify(songs)
-
-class Song(Resource):
-    def get(self, song_id):
-        cursor = conn.cursor()
-        query = '''SELECT songID, title, fname, lname, genre, releaseDate, songURL, aves
-                  FROM song NATURAL JOIN aveRate NATURAL JOIN songGenre 
-                  NATURAL JOIN artist NATURAL JOIN artistPerformsSong
-                  WHERE songID = %s'''
-        cursor.execute(query, (song_id))
-        song = cursor.fetchone()
-        cursor.close()
-        
-        if not song:
-            return {'error': 'Song not found'}, 404
-        return jsonify(song)
-
-# Define a route to hello function
+# Route handlers
 @app.route('/')
 def hello():
     session['name'] = None
@@ -238,12 +171,11 @@ def musicSearchAction():
         return render_template("musicSearch.html",error=error)
 
 # Define song
-@app.route('/song',methods=["GET","POST"])
-def song():
+@app.route('/song', methods=["GET","POST"])
+def view_song():
     songID = request.form['songID']
     session['songID'] = songID
 
-    #cursor used to send queries
     cursor = conn.cursor()
 
     # drop view
@@ -687,14 +619,8 @@ def logout():
     return redirect('/')
 
 app.secret_key = 'some key that you will never guess'
-# Run the app on localhost port 5000
-# debug = True -> you don't have to restart flask
-# for changes to go through, TURN OFF FOR PRODUCTION
+
 if __name__ == "__main__":
-    api.add_resource(UserLogin, '/api/login')
-    api.add_resource(UserRegister, '/api/register')
-    api.add_resource(SongList, '/api/songs')
-    api.add_resource(Song, '/api/songs/<int:song_id>')
     app.run('127.0.0.1', 5000, debug=True)
 
 
